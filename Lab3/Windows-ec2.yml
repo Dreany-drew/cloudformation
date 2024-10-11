@@ -1,0 +1,64 @@
+
+#Template to create EC2 instance using the latest window AMI
+
+Parameters:
+  VpcId:
+    Description: ID of an existing Virtual Private Cloud (VPC).
+    Type: "AWS::EC2::VPC::Id"
+
+  PublicSubnetId:
+    Description: ID of an existing public subnet within the specified VPC.
+    Type: 'AWS::EC2::Subnet::Id'
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance.
+    Type: 'AWS::EC2::KeyPair::KeyName' 
+
+  InstanceTypeParameter:
+    Description: Enter t2.micro, m1.small, or m1.large. Default is t2.micro.
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+
+  SSMParameterwindowAMIId:
+    Description: Name of a Parameter Store parameter that stores the latest AMI ID of the Amazon Machine Image (AMI).
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-windows-latest/EC2LaunchV2-Windows_Server-2016-English-Full-Base'
+
+Resources:
+  InstanceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Enable RDP access for the windows EC2 instance 
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+
+  WindowEc2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      KeyName: !Ref KeyName
+      ImageId: !Ref SSMParameterwindowAMIId
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: !Ref PublicSubnetId
+          GroupSet:
+            - !Ref InstanceSecurityGroup
+      Tags:
+        - Key: "Name"
+          Value: "Andreserver"
+        - Key: "Department"
+          Value: "IT"
+    
+
+ 
+
+ 
