@@ -1,0 +1,125 @@
+
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation template for deploying a web server in an existing network.
+ 
+Parameters:
+  VpcId:
+    Description: ID of an existing Virtual Private Cloud (VPC). Leave blank to use default from Network_Template.
+    Type: "AWS::EC2::VPC::Id"
+    Default: ""
+ 
+  PublicSubnetId:
+    Description: ID of an existing public subnet within the specified VPC. Leave blank to use default from Network_Template.
+    Type: "AWS::EC2::Subnet::Id"
+    Default: ""
+ 
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance.
+    Type: "AWS::EC2::KeyPair::KeyName"
+    ConstraintDescription: Can contain only ASCII characters.
+
+  SecurityGroupId:
+    Description: ID of an existing Security Group
+    Type: "AWS::EC2::SecurityGroup::Id"
+
+
+  InstanceType:
+    Description: WebServer EC2 instance type.
+    Type: String
+    Default: t2.small
+    AllowedValues:
+      - t1.micro
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+ 
+  EnvironmentType:
+    Description: The environment type (Dev or Prod).
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Prod
+ 
+Mappings:
+  AWSRegionAMIMap:
+    us-east-1:
+      AMI: ami-0ff8a91507f77f867
+    us-west-2:
+      AMI: ami-a0cfeed8
+    us-west-1:
+      AMI: ami-0bdb828fd58c52235
+    eu-west-1:
+      AMI: ami-047bb4163c506cd98
+    eu-west-2:
+      AMI: ami-f976839e
+    eu-west-3:
+      AMI: ami-0ebc281c20e89ba4b
+    eu-central-1:
+      AMI: ami-0233214e13e500f77
+ 
+Conditions:
+  HasCustomVpcId: !Not [!Equals [!Ref VpcId, ""]]
+  HasCustomSubnetId: !Not [!Equals [!Ref PublicSubnetId, ""]]
+ 
+Resources:
+  WebServerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [AWSRegionAMIMap, !Ref "AWS::Region", AMI]
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SubnetId:
+        !If [
+          HasCustomSubnetId,
+          !Ref PublicSubnetId,
+          !ImportValue Network-SubnetID,
+        ]
+      SecurityGroupIds: 
+        - !Ref SecurityGroupId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "Hello World from Andre webserver" > /var/www/html/index.html
+ 
+  myEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref WebServerInstance
+
+
+      
+Outputs:
+  SecurityGroupIDOutput:
+    Description: Security group ID used for the network
+    Value: !Ref SecurityGroupId
+    Export:
+      Name: Network-SecurityGroupID
+
+  InstanceID:
+    Description: The Instance ID
+    Value: !Ref WebServerInstance
+
+  InstanceIpAddress:
+    Description: This is the IP address of the Webserver EC2
+    Value: !Join ["", ["http://", !GetAtt WebServerInstance.PublicIp]]
+
+  InstancePrivateIp:
+    Description: Private IP address of the Webserver EC2 Instance
+    Value: !GetAtt WebServerInstance.PrivateIp
+    Export:
+      Name: !Sub "${AWS::StackName}-InstancePrivateIP"
+
+  Ec2InstancePublicDnsName:
+    Description: Public DNS of the Webserver EC2 Instance
+    Value: !GetAtt WebServerInstance.PublicDnsName
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicInstanceDns"
+
